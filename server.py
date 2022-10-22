@@ -1,33 +1,50 @@
 import socket
+import threading
 
-s = socket.socket()
-print("Socket is created")
+HOST = '127.0.0.1'
+PORT = 9091
 
-port =  10004            #12233 is the start
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)        
+print ("server Socket successfully created")
+server.bind((HOST, PORT))        
+print ("socket bound to %s" %(PORT))
 
-s.bind(('',port))
-print("socket binded to %s" %(port))
+server.listen()    
+print ("server socket is listening")
 
-#put socket int listening mode
-s.listen(5)    #5 connections can be kept on waiting if the server is busy
-                # and anyfarther connections is refused
-print("socket is listening")                
+clients = []
+nickname = []
 
+def broadcast(message):
+    for client in clients:
+        client.send(message)
 
-while True:
-#Establish a connetction with client.
-    client, addr = s.accept()
-    print("Got connection from", addr)
-    msg=""
+def handle(client, address):
     while True:
-        #receive data from client
-        msg = client.recv(1024)
-        print('from Client:  '+msg.decode("utf-8"))
-        if msg.decode("utf-8")=="CLOSE SOCKET":
-            print("connection with ",addr,"has been shut")
+        try:
+            message = client.recv(1024)
+            print(f"Client {str(address)} says {message.decode('utf-8')}")
+            broadcast(message.decode("utf-8").upper())
+            if message.decode("utf-8")=="CLOSE SOCKET":
+                print("connection with ",address,"has been shut")
+                client.close()
+                break
+        except:
+            clients.remove(client)
+            print(f"Client {address} disconnected")
             client.close()
-            break
-           
-        capMsg=msg.upper()
-        print("responding:        ",capMsg)
-        client.send(capMsg)
+            pass
+
+def receive():
+    while True:
+        client, address = server.accept()
+        print(f"Connected with {str(address)}!")
+        clients.append(client)
+        broadcast(f"Client {address} connected to the server".encode('utf-8'))
+        client.send("Connected to the server".encode('utf-8'))
+        thread = threading.Thread(target=handle, args=(client, address))
+        thread.start()
+
+print("Server running...")
+
+receive()
